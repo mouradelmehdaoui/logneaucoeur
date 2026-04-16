@@ -1,45 +1,55 @@
- const express = require('express');
+const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
+require('dotenv').config(); // Charge les variables en haut
 
-dotenv.config();
 const app = express();
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
 
-// 🔹 CONNEXION MONGODB (Optimisée pour Vercel)
-let isConnected = false;
+// 🔹 CONNEXION MONGODB (Version Singleton pour Vercel)
+let cachedDb = null;
+
 const connectDB = async () => {
-  if (isConnected) return;
+  if (cachedDb) return;
+
+  // Si MONGO_URI est absent, on log l'erreur pour débugger dans Vercel
+  if (!process.env.MONGO_URI) {
+    console.error("❌ Erreur : MONGO_URI est indéfini dans les variables d'environnement.");
+    return;
+  }
+
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    isConnected = true;
-    console.log("✅ MongoDB Connected");
+    const db = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000, // Évite de faire attendre le client trop longtemps
+    });
+    cachedDb = db;
+    console.log("✅ MongoDB Connecté");
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err);
-    throw err; // Crucial pour que Vercel sache que ça a planté
+    console.error("❌ MongoDB Connection Error:", err.message);
+    // On ne jette pas d'erreur ici pour éviter de bloquer tout le middleware
   }
 };
 
-// 🔹 INJECTER LA CONNEXION DANS CHAQUE REQUÊTE
+// 🔹 MIDDLEWARE DE CONNEXION
 app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    res.status(500).json({ message: "Erreur de connexion base de données" });
-  }
+  await connectDB();
+  next();
 });
 
-// Tes routes ici...
+// Routes
+// Vérifie bien que les chemins vers tes fichiers routes sont exacts (attention aux majuscules)
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/distribution', require('./routes/distribution.routes'));
 
-// 🔹 TRÈS IMPORTANT : Export pour Vercel (Pas de app.listen)
-module.exports = app; 
+// Route de test pour vérifier que le backend répond
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", db: mongoose.connection.readyState === 1 ? "connected" : "disconnected" });
+});
+
+module.exports = app;
 
 // MODE TEST CE DOUSSOUS :
 

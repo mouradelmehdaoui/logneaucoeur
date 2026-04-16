@@ -5,15 +5,23 @@ module.exports = (req, res, next) => {
   if (!token) return res.status(401).json({ message: "Accès refusé, token manquant" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret123");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // On attache les infos décodées à req.user
+    // DEBUG : Vérifie ce qui sort du token dans tes logs Vercel
+    console.log("Token décodé :", decoded);
+
     req.user = {
-      secteur: decoded.secteur,
-      sectorId: decoded.sectorId // <--- Sera utilisé par la route POST
+      // On s'assure de prendre l'ID, peu importe son nom dans le token
+      sectorId: decoded.sectorId || decoded.id || decoded._id 
     };
+
+    if (!req.user.sectorId) {
+       console.error("❌ sectorId manquant dans le token !");
+    }
+
     next();
   } catch (err) {
+    console.error("❌ Erreur JWT :", err.message);
     res.status(401).json({ message: "Token invalide" });
   }
 };
