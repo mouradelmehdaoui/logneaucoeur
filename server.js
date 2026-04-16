@@ -1,39 +1,45 @@
-require("dotenv").config();
-const express = require('express');
+ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const dotenv = require('dotenv');
 
+dotenv.config();
 const app = express();
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Connexion MongoDB optimisée pour Vercel
+// 🔹 CONNEXION MONGODB (Optimisée pour Vercel)
 let isConnected = false;
 const connectDB = async () => {
   if (isConnected) return;
   try {
     await mongoose.connect(process.env.MONGO_URI);
     isConnected = true;
-    console.log("✅ MongoDB Connecté");
+    console.log("✅ MongoDB Connected");
   } catch (err) {
-    console.error("❌ Erreur DB:", err);
-    // On ne jette pas d'erreur ici pour éviter le crash immédiat du worker Vercel
+    console.error("❌ MongoDB Connection Error:", err);
+    throw err; // Crucial pour que Vercel sache que ça a planté
   }
 };
 
-// Middleware pour connecter la DB à chaque appel
+// 🔹 INJECTER LA CONNEXION DANS CHAQUE REQUÊTE
 app.use(async (req, res, next) => {
-  await connectDB();
-  next();
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ message: "Erreur de connexion base de données" });
+  }
 });
 
-// Routes
+// Tes routes ici...
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/distribution', require('./routes/distribution.routes'));
 
-// Export pour Vercel (PAS de app.listen ici !)
-module.exports = app;
-
+// 🔹 TRÈS IMPORTANT : Export pour Vercel (Pas de app.listen)
+module.exports = app; 
 
 // MODE TEST CE DOUSSOUS :
 
