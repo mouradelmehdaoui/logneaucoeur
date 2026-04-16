@@ -1,45 +1,40 @@
+require("dotenv").config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
 
-dotenv.config();
 const app = express();
 
-// Middlewares
+// ✅ 1. Middlewares (CORS doit être en PREMIER)
 app.use(cors());
 app.use(express.json());
 
-//🔹 CONNEXION MONGODB (Optimisée pour Vercel)
-let isConnected = false;
+// ✅ 2. Connexion MongoDB Stable
+// On se connecte UNE SEULE FOIS au démarrage du serveur
 const connectDB = async () => {
-  if (isConnected) return;
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    isConnected = true;
-    console.log("✅ MongoDB Connected");
+    // On force des options de stabilité pour éviter le ENOTFOUND
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log("✅ MongoDB Connecté avec succès");
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err);
-    throw err; // Crucial pour que Vercel sache que ça a planté
+    console.error("❌ Erreur de connexion MongoDB :", err.message);
+    // On ne crash pas le serveur immédiatement pour laisser Render nous donner les logs
   }
 };
 
-//🔹 INJECTER LA CONNEXION DANS CHAQUE REQUÊTE
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    res.status(500).json({ message: "Erreur de connexion base de données" });
-  }
-});
+connectDB();
 
-// Tes routes ici...
+// ✅ 3. Routes
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/distribution', require('./routes/distribution.routes'));
 
-//🔹 TRÈS IMPORTANT : Export pour Vercel (Pas de app.listen)
-module.exports = app; 
+// ✅ 4. Démarrage du serveur (OBLIGATOIRE sur Render)
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Serveur lancé sur le port ${PORT}`);
+});
 
 // MODE TEST CE DOUSSOUS :
 
