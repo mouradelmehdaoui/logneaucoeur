@@ -4,27 +4,24 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Connexion MongoDB optimisée pour Vercel (évite les connexions multiples)
-let cachedDb = null;
+// Connexion MongoDB optimisée pour Vercel
+let isConnected = false;
 const connectDB = async () => {
-  if (cachedDb) return cachedDb;
-  
+  if (isConnected) return;
   try {
-    const db = await mongoose.connect(process.env.MONGO_URI);
-    cachedDb = db;
+    await mongoose.connect(process.env.MONGO_URI);
+    isConnected = true;
     console.log("✅ MongoDB Connecté");
-    return db;
   } catch (err) {
     console.error("❌ Erreur DB:", err);
-    throw err;
+    // On ne jette pas d'erreur ici pour éviter le crash immédiat du worker Vercel
   }
 };
 
-// Middleware pour s'assurer que la DB est connectée avant chaque route
+// Middleware pour connecter la DB à chaque appel
 app.use(async (req, res, next) => {
   await connectDB();
   next();
@@ -34,8 +31,10 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/distribution', require('./routes/distribution.routes'));
 
-// TRÈS IMPORTANT POUR VERCEL
+// Export pour Vercel (PAS de app.listen ici !)
 module.exports = app;
+
+
 // MODE TEST CE DOUSSOUS :
 
 // const express = require("express");
