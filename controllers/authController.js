@@ -22,5 +22,9 @@ exports.login = (req, res) => {
     { expiresIn: "1h" }
   );
 
+    console.log( token, secteur );
+  
   res.json({ token, secteur });
+
+
 };
