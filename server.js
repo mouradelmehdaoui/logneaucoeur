@@ -5,37 +5,37 @@ const cors = require('cors');
 
 const app = express();
 
-// ✅ 1. Middlewares (CORS doit être en PREMIER)
 app.use(cors());
 app.use(express.json());
 
-// ✅ 2. Connexion MongoDB Stable
-// On se connecte UNE SEULE FOIS au démarrage du serveur
+// Connexion MongoDB optimisée pour Vercel (évite les connexions multiples)
+let cachedDb = null;
 const connectDB = async () => {
+  if (cachedDb) return cachedDb;
+  
   try {
-    // On force des options de stabilité pour éviter le ENOTFOUND
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log("✅ MongoDB Connecté avec succès");
+    const db = await mongoose.connect(process.env.MONGO_URI);
+    cachedDb = db;
+    console.log("✅ MongoDB Connecté");
+    return db;
   } catch (err) {
-    console.error("❌ Erreur de connexion MongoDB :", err.message);
-    // On ne crash pas le serveur immédiatement pour laisser Render nous donner les logs
+    console.error("❌ Erreur DB:", err);
+    throw err;
   }
 };
 
-connectDB();
+// Middleware pour s'assurer que la DB est connectée avant chaque route
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
-// ✅ 3. Routes
+// Routes
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/distribution', require('./routes/distribution.routes'));
 
-// ✅ 4. Démarrage du serveur (OBLIGATOIRE sur Render)
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur lancé sur le port ${PORT}`);
-});
-
+// TRÈS IMPORTANT POUR VERCEL
+module.exports = app;
 // MODE TEST CE DOUSSOUS :
 
 // const express = require("express");
