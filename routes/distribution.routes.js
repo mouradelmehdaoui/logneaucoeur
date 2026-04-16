@@ -2,43 +2,41 @@ const router = require("express").Router();
 const auth = require("../middleware/auth");
 const Distribution = require("../models/Distribution");
 
-// 🟢 GET : Toutes les distributions DU SECTEUR CONNECTÉ
+// 🟢 GET : Toutes les distributions
 router.get("/", auth, async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = 5;
-    const skip = (page - 1) * limit;
+    // Sécurité : si le middleware a laissé passer un user sans sectorId
+    if (!req.user?.sectorId) {
+      return res.status(400).json({ message: "Le token ne contient pas d'ID de secteur." });
+    }
 
-    // On filtre impérativement par sectorId pour que chaque secteur voit son tableau
     const query = { sectorId: req.user.sectorId };
+    const data = await Distribution.find(query).sort({ createdAt: -1 });
 
-    const data = await Distribution.find(query)
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
-
-    const total = await Distribution.countDocuments(query);
-
-    res.json({
-      data,
-      totalPages: Math.ceil(total / limit)
-    });
+    res.json({ data, totalPages: 1 });
   } catch (err) {
-    res.status(500).json({ message: "Erreur lors de la récupération", error: err.message });
+    // On renvoie l'erreur précise pour la voir dans F12 > Network
+    res.status(500).json({ message: "Erreur GET", error: err.message });
   }
 });
 
-// 🔵 POST : Créer une nouvelle distribution
+// 🔵 POST : Créer une distribution
 router.post("/", auth, async (req, res) => {
   try {
+    if (!req.user?.sectorId) {
+      return res.status(400).json({ message: "Identification du secteur impossible." });
+    }
+
     const newEntry = new Distribution({
       ...req.body,
-      sectorId: req.user.sectorId // Injecté par le token
+      sectorId: req.user.sectorId
     });
+
     const saved = await newEntry.save();
     res.status(201).json(saved);
   } catch (err) {
-    res.status(500).json({ message: "Erreur ajout", error: err.message });
+    // Si c'est une erreur de validation (champs manquants), on renvoie 400
+    res.status(400).json({ message: "Données invalides", error: err.message });
   }
 });
 
